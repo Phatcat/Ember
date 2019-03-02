@@ -16,19 +16,40 @@
 # PCRE_FOUND	- True if pcre found.
 
 # Look for the header file.
-FIND_PATH(PCRE_INCLUDE_DIR NAMES pcre.h)
+FIND_PATH(PCRE_ROOT_DIR
+          NAMES pcre.h
+          PATHS ENV PCREPROOT
+          DOC "pcre root directory")
 
-# Look for the library.
-FIND_LIBRARY(PCRE_LIBRARY NAMES pcre)
+# Look for the libraries.
+FIND_LIBRARY(PCRE_LIBRARY_RELEASE
+             NAMES pcre
+             HINTS ${PCRE_ROOT_DIR}
+             PATH_SUFFIXES lib
+             DOC "pcre release library")
+
+FIND_LIBRARY(PCRE_LIBRARY_DEBUG
+             NAMES pcred
+             HINTS ${PCRE_ROOT_DIR}
+             PATH_SUFFIXES lib
+             DOC "pcre debug library")
 
 # Handle the QUIETLY and REQUIRED arguments and set PCRE_FOUND to TRUE if all listed variables are TRUE.
 INCLUDE(FindPackageHandleStandardArgs)
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(PCRE DEFAULT_MSG PCRE_LIBRARY PCRE_INCLUDE_DIR)
 
+IF(PCRE_LIBRARY_DEBUG AND PCRE_LIBRARY_RELEASE)
+  SET(PCRE_LIBRARY
+      optimized ${PCRE_LIBRARY_RELEASE}
+      debug ${PCRE_LIBRARY_DEBUG} CACHE DOC "pcre library")
+ELSEIF(PCRE_LIBRARY_RELEASE)
+  SET(PCRE_LIBRARY ${PCRE_LIBRARY_RELEASE} CACHE DOC "pcre library")
+ENDIF(PCRE_LIBRARY_DEBUG AND PCRE_LIBRARY_RELEASE)
+
 # Copy the results to the output variables.
 IF(PCRE_FOUND)
 	SET(PCRE_LIBRARIES ${PCRE_LIBRARY})
-	SET(PCRE_INCLUDE_DIRS ${PCRE_INCLUDE_DIR})
+	SET(PCRE_INCLUDE_DIRS ${PCRE_ROOT_DIR})
 ELSE(PCRE_FOUND)
 	SET(PCRE_LIBRARIES)
 	SET(PCRE_INCLUDE_DIRS)
