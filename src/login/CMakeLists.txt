@@ -87,7 +87,7 @@ set(LIBRARY_SRC
 source_group("Grunt Protocol" FILES ${GRUNT_SRC})
 
 add_library(${LIBRARY_NAME} ${LIBRARY_HDR} ${LIBRARY_SRC} ${GRUNT_SRC})
-target_link_libraries(${LIBRARY_NAME} logger shared dbcreader spark srp6 stun ports ${MYSQLCCPP_LIBRARY}
+target_link_libraries(${LIBRARY_NAME} logger shared dbcreader spark srp6 stun ports ${MYSQLCCPP_LIBRARY} mysqlclient
                                       ${Boost_LIBRARIES} ${BOTAN_LIBRARY} ${ZLIB_LIBRARY} Threads::Threads)
 
 add_executable(${EXECUTABLE_NAME} main.cpp)

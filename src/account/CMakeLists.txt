@@ -25,7 +25,7 @@ set(LIBRARY_SRC
 include_directories(${SPARK_INCLUDES_DIR})
 
 add_library(${LIBRARY_NAME} ${LIBRARY_HDR} ${LIBRARY_SRC})
-target_link_libraries(${LIBRARY_NAME} logger shared spark conpool ${MYSQLCCPP_LIBRARY}
+target_link_libraries(${LIBRARY_NAME} logger shared spark conpool ${MYSQLCCPP_LIBRARY} mysqlclient
                                       ${Boost_LIBRARIES} ${BOTAN_LIBRARY} Threads::Threads)
 
 add_executable(${EXECUTABLE_NAME} main.cpp)

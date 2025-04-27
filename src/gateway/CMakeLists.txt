@@ -86,7 +86,7 @@ set(LIBRARY_SRC
 add_library(${LIBRARY_NAME} ${LIBRARY_HDR} ${LIBRARY_SRC})
 add_dependencies(${LIBRARY_NAME} FB_SCHEMA_COMPILE)
 target_link_libraries(${LIBRARY_NAME} logger shared nsd conpool stun ports dbcreader protocol spark ${MYSQLCCPP_LIBRARY}
-                                      ${Boost_LIBRARIES} ${BOTAN_LIBRARY} ${ZLIB_LIBRARY} Threads::Threads)
+                                      mysqlclient ${Boost_LIBRARIES} ${BOTAN_LIBRARY} ${ZLIB_LIBRARY} Threads::Threads)
 
 add_executable(${EXECUTABLE_NAME} main.cpp)
 target_link_libraries(${EXECUTABLE_NAME} ${LIBRARY_NAME} logger shared ${Boost_LIBRARIES} Threads::Threads)
