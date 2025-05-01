@@ -8,17 +8,17 @@ RUN apt-get -y update && apt-get -y upgrade \
  && apt-get -y install software-properties-common \
  && apt-get -y install wget \
  # GCC stuff
- && apt-get -y install build-essential gcc-14 g++-14 \
+ && apt-get -y install build-essential gcc-15 g++-15 \
  # Clang stuff
  #&& wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc >/dev/null \
  #&& add-apt-repository -y 'deb http://apt.llvm.org/noble/ llvm-toolchain-noble-18 main' \
  #&& apt update \
  #&& apt-get -y install clang-18 \
- && update-alternatives --install /usr/bin/cc cc /usr/bin/gcc-14 100 \
- && update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++-14 100 \
- && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 100 \
- && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 100 \
- && apt-get -y install libstdc++-14-dev \
+ && update-alternatives --install /usr/bin/cc cc /usr/bin/gcc-15 100 \
+ && update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++-15 100 \
+ && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-15 100 \
+ && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-15 100 \
+ && apt-get -y install libstdc++-15-dev \
  && apt-get -y install cmake \
  && apt-get -y install git \
  # Install required library packages
@@ -27,11 +27,11 @@ RUN apt-get -y update && apt-get -y upgrade \
  && apt-get install -y zlib1g-dev \
  && apt-get install -y libpcre3-dev \
  && apt-get install -y libflatbuffers-dev \
- && wget -q https://archives.boost.io/release/1.87.0/source/boost_1_87_0.tar.gz \
- && tar -zxf boost_1_87_0.tar.gz \
- && cd boost_1_87_0 \
+ && wget -q https://archives.boost.io/release/1.88.0/source/boost_1_88_0.tar.gz \
+ && tar -zxf boost_1_88_0.tar.gz \
+ && cd boost_1_88_0 \
  && ./bootstrap.sh --with-libraries=system,program_options,headers \
- && ./b2 link=static install -d0 -j $(nproc) cxxflags="-std=c++23"
+ && ./b2 link=static install -d0 -j $(nproc) cxxflags="-std=c++2c"
 
 # Copy source
 ARG working_dir=/usr/src/ember
@@ -56,6 +56,7 @@ RUN --mount=type=cache,target=build \
     -DDISABLE_EMBER_THREADS=${disable_threads} \
     -DBOTAN_ROOT_DIR=/usr/include/botan-2/ \
     -DBOTAN_LIBRARY=/usr/lib/x86_64-linux-gnu/libbotan-2.so \
+    -DCMAKE_CXX_FLAGS="-std=c++2c" \
     && cd build && make -j$(nproc) install \
     && make test
 
