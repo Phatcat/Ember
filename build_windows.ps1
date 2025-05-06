@@ -46,7 +46,7 @@ $toolchainFile       = "vcpkg\scripts\buildsystems\vcpkg.cmake"
 $buildOptionalTools  = "-1"
 $disableEmberThreads = "0"
 $runtimeOption       = "MultiThreaded$<$<CONFIG:Debug>:Debug>"
-$buildType           = "Debug"
+$buildType           = "Release"
 
 cmake -S . -B $buildDir -G "$generator" `
       -DCMAKE_TOOLCHAIN_FILE="$toolchainFile" `
