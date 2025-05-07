@@ -16,8 +16,8 @@ jobs:
 ####################################################################
 # Linux – Docker Build
 ####################################################################
-  Linux_Ubuntu_x64:
-    runs-on: ubuntu-24.04
+  Linux_Ubuntu_ARM64:
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4.2.2

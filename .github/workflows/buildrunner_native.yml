@@ -84,27 +84,29 @@ jobs:
           ./build_macos.sh
 
 ####################################################################
-# Linux – Cached Debug Builds
+# Linux – Cached Debug Build
 ####################################################################
-  Linux_Ubuntu_ARM64_debug:
-    runs-on: ubuntu-24.04-arm
+  Linux_Ubuntu_debug:
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4.2.2
 
-      - name: Cache apt-get
+      - name: Cache Dependencies and Homebrew
         uses: actions/cache@v3
         with:
-          path: /var/cache/apt/archives
-          key: linux_arm-deps
-          restore-keys: linux_arm-deps
+          path: |
+            ~/.cache/Homebrew
+            dependencies
+          key: linux-deps
+          restore-keys: linux-deps
 
       - name: Cache Build Folder
         uses: actions/cache@v3
         with:
           path: build
-          key: linux_arm-build-${{ hashFiles('CMakeLists.txt') }}
-          restore-keys: linux_arm-build-
+          key: linux-build-${{ hashFiles('CMakeLists.txt') }}
+          restore-keys: linux-build-
 
       - name: Run Linux Build Script
         run: |
