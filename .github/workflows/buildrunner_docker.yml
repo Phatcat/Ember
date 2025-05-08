@@ -22,6 +22,17 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4.2.2
 
-      - uses: actions/checkout@v4
-      - name: Build the Docker image
-        run: docker build . --file Dockerfile
+      - name: Restore Docker Buildx Cache
+        uses: actions/cache@v3
+        with:
+          path: /tmp/docker-cache
+          key: docker-cache-${{ runner.os }}-${{ hashFiles('Dockerfile') }}
+          restore-keys: docker-cache-${{ runner.os }}
+
+      - name: Build the Docker image with caching
+        run: |
+          docker buildx create --use --name mybuilder || docker buildx use mybuilder
+          docker buildx build --file Dockerfile \
+            --cache-from=type=local,src=/tmp/docker-cache \
+            --cache-to=type=local,dest=/tmp/docker-cache,mode=max \
+            .
