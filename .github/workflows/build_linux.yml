@@ -1,0 +1,41 @@
+# Copyright (c) 2025 Ember
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+name: Linux (GCC) CI
+on:
+  push:
+    branches: [ "development" ]
+  pull_request:
+    branches: [ "development" ]
+
+jobs:
+  # Linux – Cached Debug Build
+  Ubuntu_x86_64_debug:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4.2.2
+
+      - name: Cache Dependencies and Homebrew
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/Homebrew
+            dependencies
+          key: linux-deps
+          restore-keys: linux-deps
+
+      - name: Cache Build Folder
+        uses: actions/cache@v3
+        with:
+          path: build
+          key: linux-build-${{ hashFiles('CMakeLists.txt') }}
+          restore-keys: linux-build-
+
+      - name: Run Linux Build Script
+        run: |
+          chmod +x ./docs/scripts/build_linux.sh
+          ./docs/scripts/build_linux.sh
