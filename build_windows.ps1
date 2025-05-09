@@ -14,41 +14,79 @@ $vsDevCmd = Join-Path $vsPath "Common7\Tools\VsDevCmd.bat"
 # Use the developer command prompt to set up the environment.
 & "$vsDevCmd"
 
-#############################################################
-# Install dependencies through vcpkg
-# Just grab and bootstrap the vcpkg and the toolchain file will handle the rest
-#############################################################
-Write-Host "Cloning vcpkg and boot-strapping"
-git clone https://github.com/microsoft/vcpkg.git
-.\vcpkg\bootstrap-vcpkg.bat
-.\vcpkg\vcpkg integrate install
+# Import the module
+Import-Module AnyPackage
+
+# List the currently registered providers
+Write-Host "Registered package providers:"
+Get-AnyPackageProvider
+
+try {
+    Write-Host "Attempting to install package 'Botan'..."
+    Install-Package -Name Botan -Force
+    Write-Host "Botan was installed (or already available) using default providers."
+} catch {
+    Write-Error "Failed to install Botan using default providers."
+}
+
+try {
+    Write-Host "Attempting to install package 'Boost'..."
+    Install-Package -Name Boost -Force
+    Write-Host "Boost was installed (or already available) using default providers."
+} catch {
+    Write-Error "Failed to install Boost using default providers."
+}
+
+try {
+    Write-Host "Attempting to install dependency 'mysql-client'..." -ForegroundColor Cyan
+    Install-Package -Name "mysql-client" -Force -Verbose
+    Write-Host "'mysql-client' installed successfully." -ForegroundColor Green
+} catch {
+    Write-Error "Failed to install dependency 'mysql-client' via default providers."
+}
+
+try {
+    Write-Host "Attempting to install dependency 'pcre'..." -ForegroundColor Cyan
+    Install-Package -Name "pcre" -Force -Verbose
+    Write-Host "'pcre' installed successfully." -ForegroundColor Green
+} catch {
+    Write-Error "Failed to install dependency 'pcre' via default providers."
+}
+
+try {
+    Write-Host "Attempting to install dependency 'flatbuffers'..." -ForegroundColor Cyan
+    Install-Package -Name "flatbuffers" -Force -Verbose
+    Write-Host "'flatbuffers' installed successfully." -ForegroundColor Green
+} catch {
+    Write-Error "Failed to install dependency 'flatbuffers' via default providers."
+}
+
+try {
+    Write-Host "Attempting to install dependency 'mysql-connector-c++'..." -ForegroundColor Cyan
+    Install-Package -Name "mysql-connector-c++" -Force -Verbose
+    Write-Host "'mysql-connector-c++' installed successfully." -ForegroundColor Green
+} catch {
+    Write-Error "Failed to install dependency 'mysql-connector-c++' via default providers."
+}
+
+# List installed packages:
+Write-Host "Installed packages:"
+Get-Package
 
 ###############################
 # Configure and Build Ember
 ###############################
 Write-Host "=== Configuring project with CMake ==="
 
-# Check if we are running on an ARM architecture.
-if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") {
-    Write-Host "ARM64 architecture detected."
-    $targetTriplet= "arm64-windows-static"
-} else {
-    Write-Host "Non-ARM architecture detected."
-    $targetTriplet = "x64-windows-static"
-}
-
 $buildDir            = "build"
 $installDir          = ".\build\bin"
 $generator           = "Visual Studio 17 2022"
-$toolchainFile       = "vcpkg\scripts\buildsystems\vcpkg.cmake"
 $buildOptionalTools  = "-1"
 $disableEmberThreads = "0"
 $runtimeOption       = "MultiThreaded$<$<CONFIG:Debug>:Debug>"
 $buildType           = "Debug"
 
 cmake -S . -B $buildDir -G "$generator" `
-      -DCMAKE_TOOLCHAIN_FILE="$toolchainFile" `
-      -DVCPKG_TARGET_TRIPLET="$targetTriplet" `
       -DCMAKE_MSVC_RUNTIME_LIBRARY="$runtimeOption" `
       -DBUILD_OPT_TOOLS="$buildOptionalTools" `
       -DDISABLE_EMBER_THREADS="$disableEmberThreads" `

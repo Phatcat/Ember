@@ -20,6 +20,19 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4.2.2
 
+      - name: Cache Dependencies and Homebrew
+        uses: actions/cache@v3
+        with:
+          path: |
+            C:\boost\
+            C:\botan\
+            C:\flatbuffers\
+            C:\mysql-connector-c++\
+            C:\pcre\
+            dependencies
+          key: win-deps
+          restore-keys: win-deps
+
       - name: Cache Build Folder
         uses: actions/cache@v3
         with:
@@ -37,6 +50,19 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4.2.2
+
+      - name: Cache Dependencies and Homebrew
+        uses: actions/cache@v3
+        with:
+          path: |
+            C:\boost\
+            C:\botan\
+            C:\flatbuffers\
+            C:\mysql-connector-c++\
+            C:\pcre\
+            dependencies
+          key: win_arm-deps
+          restore-keys: win_arm-deps
 
       - name: Cache Build Folder
         uses: actions/cache@v3
