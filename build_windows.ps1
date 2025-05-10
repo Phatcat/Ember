@@ -28,15 +28,6 @@ git clone https://github.com/microsoft/vcpkg.git
 ###############################
 Write-Host "=== Configuring project with CMake ==="
 
-# Check if we are running on an ARM architecture.
-if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") {
-    Write-Host "ARM64 architecture detected."
-    $targetTriplet= "arm64-windows-static"
-} else {
-    Write-Host "Non-ARM architecture detected."
-    $targetTriplet = "x64-windows-static"
-}
-
 $buildDir            = "build"
 $installDir          = ".\build\bin"
 $generator           = "Visual Studio 17 2022"
@@ -46,9 +37,8 @@ $disableEmberThreads = "0"
 $runtimeOption       = "MultiThreaded$<$<CONFIG:Debug>:Debug>"
 $buildType           = "Debug"
 
-cmake -S . -B $buildDir -G "$generator" -A "$env:PROCESSOR_ARCHITECTURE" `
+cmake -S . -B $buildDir -G "$generator" `
       -DCMAKE_TOOLCHAIN_FILE="$toolchainFile" `
-      -DVCPKG_TARGET_TRIPLET="$targetTriplet" `
       -DCMAKE_MSVC_RUNTIME_LIBRARY="$runtimeOption" `
       -DBUILD_OPT_TOOLS="$buildOptionalTools" `
       -DDISABLE_EMBER_THREADS="$disableEmberThreads" `

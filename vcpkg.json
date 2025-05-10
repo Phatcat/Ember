@@ -10,11 +10,6 @@
     "flatbuffers",
     "pcre",
     "zlib",
-    {
-      "name": "mysql-connector-cpp",
-      "features": [
-        "jdbc"
-      ]
-    }
+    "mysql-connector-cpp"
   ]
 }
