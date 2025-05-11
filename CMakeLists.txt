@@ -95,7 +95,7 @@ set(version_file "${CMAKE_CURRENT_BINARY_DIR}/Version.cpp")
 ##############################
 #            Botan           #
 ##############################
-find_package(Botan 3.7.0 REQUIRED)
+find_package(Botan 3.6.1 REQUIRED)
 # Check if the static target exists; otherwise fallback to the shared target.
 if(TARGET Botan::Botan-static)
   set(BOTAN_LIBRARY Botan::Botan-static)
