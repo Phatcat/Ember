@@ -4,43 +4,173 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-# Use vswhere.exe to locate the latest Visual Studio installation that includes the VC Tools.
-$vsPath = & "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" `
-          -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+#############################################################
+# Install dependencies through conan
+# Use pip for getting conan if it's not already available
+#############################################################
+Write-Host "Installing dependencies through Conan..."
+if (-not (Get-Command conan.exe -ErrorAction SilentlyContinue)) {
+    Write-Host "Conan not found. Installing Conan via pip..."
+    pip install conan --user
+    $ConanScripts = "$env:APPDATA\Python\Python39\Scripts"
+    if (-not ($env:PATH -like "*$ConanScripts*")) {
+        Write-Host "Adding $ConanScripts to PATH"
+        $env:PATH += ";$ConanScripts"
+    }
+} else {
+    Write-Host "Conan is already installed."
+}
 
-# Build the full path to the VsDevCmd.bat from the installation path.
-$vsDevCmd = Join-Path $vsPath "Common7\Tools\VsDevCmd.bat"
+# Detect and patch the default profile for Debug and C++23
+conan profile detect
+$profilePath = (& conan profile path default).Trim()
+(Get-Content $profilePath) `
+    -replace '^(build_type=).*$', 'build_type=Debug' `
+    -replace '^(compiler\.cppstd=).*$', 'compiler.cppstd=23' `
+    | Set-Content $profilePath -Force
 
-# Use the developer command prompt to set up the environment.
-& "$vsDevCmd"
+$conanCmd = "conan install"
+
+# Dependencies to install via Conan.
+$conanCmd += " --requires boost/1.87.0"
+$conanCmd += " --requires botan/3.6.1"
+$conanCmd += " --requires flatbuffers/24.12.23"
+$conanCmd += " --requires pcre/8.45"
+
+$buildDir = "build"
+if (-not (Test-Path $buildDir)) {
+    New-Item -ItemType Directory -Path $buildDir | Out-Null
+}
+
+$conanCmd += " -of $buildDir --build missing -g CMakeToolchain -g CMakeDeps --profile default"
+Write-Host "Running Conan install..."
+Invoke-Expression $conanCmd
 
 #############################################################
-# Install dependencies through vcpkg
-# Just grab and bootstrap the vcpkg and the toolchain file will handle the rest
+# --- Patch Conan configuration ---
 #############################################################
-Write-Host "Cloning vcpkg and boot-strapping"
-git clone https://github.com/microsoft/vcpkg.git
-.\vcpkg\bootstrap-vcpkg.bat
-.\vcpkg\vcpkg integrate install
+# Define the top-level CMakeLists.txt path (assumed to be in the project root)
+$cmakeFile = "CMakeLists.txt"
+
+# Read the entire file into a single string (assuming the file exists)
+$cmakeContent = Get-Content $cmakeFile -Raw
+
+# --- Patch the Botan block ---
+# We match from "if(TARGET Botan::Botan-static)" and ends with the first "endif()"
+$botanRegex = '(?ms)if\s*\(TARGET\s+Botan::Botan-static\).*?endif\(\)'
+$newBotanBlock = @"
+if(TARGET botan::botan-static)
+  set(BOTAN_LIBRARY botan::botan-static)
+  message(STATUS "Using Botan static library")
+elseif(TARGET botan::botan)
+  set(BOTAN_LIBRARY botan::botan)
+  message(STATUS "Using Botan shared library")
+else()
+  message(FATAL_ERROR "No valid Botan target found")
+endif()
+"@
+$cmakeContent = [regex]::Replace($cmakeContent, $botanRegex, $newBotanBlock, 
+                                 [System.Text.RegularExpressions.RegexOptions]::Singleline)
+
+# --- Patch the PCRE block ---
+# Find the PCRE find_package line and then append a line setting PCRE_LIBRARY to pcre::pcre.
+$pcrePattern = "(find_package\(PCRE\s+8\.39\s+REQUIRED\))"
+$pcreReplacement = '$1' + "`nset(PCRE_LIBRARY pcre::pcre)"
+$cmakeContent = [regex]::Replace($cmakeContent, $pcrePattern, $pcreReplacement)
+
+# Write the modified content back to the CMakeLists.txt
+Set-Content -Path $cmakeFile -Value $cmakeContent
+Write-Host "Updated top-level CMakeLists.txt successfully."
+
+#############################################################
+# Install MySQL Connector/C++ (Prebuilt for x86_64 / Source for ARM64)
+#############################################################
+if (-not (Test-Path "C:\mysql-connector-c++\")) {
+    # Define a local cache directory for downloads (relative to this script)
+    $cacheDir = "tmp"
+    if (-not (Test-Path $cacheDir)) {
+        New-Item -ItemType Directory -Path $cacheDir | Out-Null
+    }
+
+    # Define the cache ZIP file path for MySQL Connector
+    $CACHE_ZIP = Join-Path $cacheDir "mysql-connector.zip"
+
+    # Determine architecture and set download parameters accordingly
+    if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") {
+        Write-Host "ARM64 architecture detected. Downloading MySQL Connector/C++ source code."
+        $url = "https://github.com/mysql/mysql-connector-cpp/archive/refs/tags/9.3.0.zip"
+        $connectorSubDir = "mysql-connector-c++-9.3.0"
+    } else {
+        Write-Host "x86_64 architecture detected. Using prebuilt MySQL Connector/C++ binaries."
+        $url = "https://dev.mysql.com/get/Downloads/Connector-C++/mysql-connector-c++-9.3.0-winx64-debug.zip"
+        $connectorSubDir = "mysql-connector-c++-9.3.0-winx64-debug"
+    }
+    Write-Host "Downloading MySQL Connector/C++ from $url"
+    if (Get-Command curl -ErrorAction SilentlyContinue) {
+        Write-Host "Downloading using curl..."
+        curl -L $url -o $CACHE_ZIP
+    } elseif (Get-Command wget -ErrorAction SilentlyContinue) {
+        Write-Host "Downloading using wget..."
+        wget $url -O $CACHE_ZIP
+    } else {
+        Write-Host "Downloading using Invoke-WebRequest..."
+        Invoke-WebRequest -Uri $url -OutFile $CACHE_ZIP
+    }
+
+    # Set extraction directory for the connector (within the cache folder)
+    $extractDir = Join-Path $cacheDir "mysql-connector-c++"
+    New-Item -ItemType Directory -Path $extractDir | Out-Null
+
+    Write-Host "Extracting MySQL Connector/C++..."
+    Expand-Archive -Path $CACHE_ZIP -DestinationPath $extractDir
+
+    # Determine source base directory (if the ZIP extract creates a subfolder)
+    $sourceBase = Join-Path $extractDir $connectorSubDir
+    if (-not (Test-Path $sourceBase)) {
+        $sourceBase = $extractDir
+    }
+
+    if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") {
+        # For ARM64: Downloaded Source – Build Required
+        Write-Host "ARM64 architecture: MySQL Connector/C++ source downloaded."
+        Write-Host "Source code is available at: $sourceBase"
+        Write-Host "You must now build the connector from source for ARM64."
+        Write-Host "For example, use CMake along with your preferred build configuration."
+    } else {
+        # For x86_64: Install Prebuilt Libraries
+        # Define the base installation directory (de facto standard for Connector/C++ on Windows)
+        $mysqlconcppTargetDir = "C:\mysql-connector-c++"
+
+        if (-not (Test-Path $mysqlconcppTargetDir)) {
+            New-Item -ItemType Directory -Path $mysqlconcppTargetDir | Out-Null
+        }
+
+        Write-Host "Installing MySQL Connector/C++ (prebuilt x86_64) to $mysqlconcppTargetDir..."
+
+        # Set the expected extracted folder name from the ZIP archive (as provided by Oracle)
+        $sourceBase = Join-Path $extractDir "mysql-connector-c++-9.3.0-winx64"
+
+        # Instead of selecting only a few subdirectories, copy the entire contents to preserve the layout.
+        Copy-Item -Path (Join-Path $sourceBase "*") -Destination $mysqlconcppTargetDir -Recurse -Force
+
+        Write-Host "MySQL Connector/C++ installed at: $mysqlconcppTargetDir"
+    }
+} else {
+    Write-Host "MySQL Connector/C++ is already installed at $mysqlconcppTargetDir"
+}
+
+$env:CMAKE_PREFIX_PATH = "$mysqlconcppTargetDir;$env:CMAKE_PREFIX_PATH"
+Write-Host "CMAKE_PREFIX_PATH set to: $env:CMAKE_PREFIX_PATH"
 
 ###############################
 # Configure and Build Ember
 ###############################
 Write-Host "=== Configuring project with CMake ==="
 
-# Check if we are running on an ARM architecture.
-if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") {
-    Write-Host "ARM64 architecture detected on this build runner."
-    $targetTriplet= "arm64-windows-static"
-} else {
-    Write-Host "Non-ARM architecture detected."
-    $targetTriplet = "x64-windows-static"
-}
-
 $buildDir            = "build"
 $installDir          = ".\build\bin"
 $generator           = "Visual Studio 17 2022"
-$toolchainFile       = "vcpkg\scripts\buildsystems\vcpkg.cmake"
+$toolchainFile       = "$buildDir\conan_toolchain.cmake"
 $buildOptionalTools  = "-1"
 $disableEmberThreads = "0"
 $runtimeOption       = "MultiThreaded$<$<CONFIG:Debug>:Debug>"
@@ -48,7 +178,6 @@ $buildType           = "Debug"
 
 cmake -S . -B $buildDir -G "$generator" `
       -DCMAKE_TOOLCHAIN_FILE="$toolchainFile" `
-      -DVCPKG_TARGET_TRIPLET="$targetTriplet" `
       -DCMAKE_MSVC_RUNTIME_LIBRARY="$runtimeOption" `
       -DBUILD_OPT_TOOLS="$buildOptionalTools" `
       -DDISABLE_EMBER_THREADS="$disableEmberThreads" `
