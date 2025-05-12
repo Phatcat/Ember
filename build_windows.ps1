@@ -34,6 +34,7 @@ $conanCmd = "conan install"
 # Dependencies to install via Conan.
 $conanCmd += " --requires boost/1.87.0"
 $conanCmd += " --requires botan/3.6.1"
+$conanCmd += " --requires flatbuffers/24.12.23"
 $conanCmd += " --requires pcre/8.45"
 
 $buildDir = "build"
@@ -80,69 +81,6 @@ $cmakeContent = [regex]::Replace($cmakeContent, $pcrePattern, $pcreReplacement)
 # Write the modified content back to the CMakeLists.txt
 Set-Content -Path $cmakeFile -Value $cmakeContent
 Write-Host "Updated top-level CMakeLists.txt successfully."
-
-#############################################################
-# Install FlatBuffers from source (version 25.2.10)
-#############################################################
-$flatbuffersTargetDir = "C:\flatbuffers"
-if (-not (Test-Path $flatbuffersTargetDir)) {
-    # Define a local cache directory for downloads (relative to this script)
-    $cacheDir = "tmp"
-    if (-not (Test-Path $cacheDir)) {
-        New-Item -ItemType Directory -Path $cacheDir | Out-Null
-    }
-
-    # Define the cache ZIP file path for FlatBuffers
-    $CACHE_ZIP = Join-Path $cacheDir "flatbuffers-25.2.10.zip"
-
-    $url = "https://github.com/google/flatbuffers/archive/refs/tags/v25.2.10.zip"
-    Write-Host "Downloading FlatBuffers v25.2.10 from $url"
-    if (Get-Command curl -ErrorAction SilentlyContinue) {
-        Write-Host "Downloading using curl..."
-        curl -L $url -o $CACHE_ZIP
-    } elseif (Get-Command wget -ErrorAction SilentlyContinue) {
-        Write-Host "Downloading using wget..."
-        wget $url -O $CACHE_ZIP
-    } else {
-        Write-Host "Downloading using Invoke-WebRequest..."
-        Invoke-WebRequest -Uri $url -OutFile $CACHE_ZIP
-    }
-
-    # Set extraction directory for FlatBuffers (within the cache folder)
-    $extractDir = Join-Path $cacheDir "flatbuffers"
-    New-Item -ItemType Directory -Path $extractDir | Out-Null
-
-    Write-Host "Extracting FlatBuffers..."
-    Expand-Archive -Path $CACHE_ZIP -DestinationPath $extractDir
-
-    $sourceBase = Join-Path $extractDir "flatbuffers-25.2.10"
-    if (-not (Test-Path $sourceBase)) {
-        # Fallback if the folder name deviates
-        $sourceBase = $extractDir
-    }
-
-    # Create a build directory inside the source directory
-    $buildDir = Join-Path $sourceBase "build"
-    if (Test-Path $buildDir) {
-        Remove-Item $buildDir -Recurse -Force
-    }
-    New-Item -ItemType Directory -Path $buildDir | Out-Null
-
-    Write-Host "Configuring FlatBuffers debug build..."
-    cmake -S $sourceBase -B $buildDir -G "Visual Studio 17 2022" -DCMAKE_INSTALL_PREFIX="$flatbuffersTargetDir"
-
-    Write-Host "Building FlatBuffers..."
-    cmake --build $buildDir --config Debug
-
-    Write-Host "Installing FlatBuffers to $flatbuffersTargetDir..."
-    cmake --build $buildDir --target install --config Debug
-
-} else {
-    Write-Host "FlatBuffers is already installed at $flatbuffersTargetDir"
-}
-
-$env:CMAKE_PREFIX_PATH = "$flatbuffersTargetDir;$env:CMAKE_PREFIX_PATH"
-Write-Host "CMAKE_PREFIX_PATH set to: $env:CMAKE_PREFIX_PATH"
 
 #############################################################
 # Install MySQL Connector/C++ (Prebuilt for x86_64 / Source for ARM64)

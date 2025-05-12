@@ -24,7 +24,7 @@ set(LIBRARY_SRC
 include_directories(${CMAKE_SOURCE_DIR}/deps/utf8cpp)
 
 add_library(${LIBRARY_NAME} ${LIBRARY_HDR} ${LIBRARY_SRC})
-target_link_libraries(${LIBRARY_NAME} logger shared dbcreader spark protocol ${MYSQLCCPP_LIBRARY} mysqlclient
+target_link_libraries(${LIBRARY_NAME} logger shared dbcreader spark protocol ${MYSQLCCPP_LIBRARY}
                                       ${Boost_LIBRARIES} ${BOTAN_LIBRARY} Threads::Threads)
 
 add_executable(${EXECUTABLE_NAME} main.cpp)
