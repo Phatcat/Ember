@@ -1,4 +1,4 @@
-# Copyright (c) 2016 - 2024 Ember
+# Copyright (c) 2016 - 2025 Ember
 #
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -30,6 +30,7 @@ flatbuffers_generate_headers(
   FLAGS               ${FLATC_ARGS}
   BYPRODUCTS          ${BINARY_SCHEMAS_DIR}/Spark_generated.h
 )
+set_target_properties(${FB_SCHEMA_TARGET_NAME} PROPERTIES INTERFACE_LINK_LIBRARIES "flatbuffers::flatbuffers")
 target_include_directories(${FB_SCHEMA_TARGET_NAME} INTERFACE ${BINARY_SCHEMAS_DIR})
 
 # MSVC requires a post-compile target to depend upon or it will not respsect build order

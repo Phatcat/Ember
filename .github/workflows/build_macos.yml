@@ -17,19 +17,19 @@ jobs:
     runs-on: macos-15
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
       - name: Cache Dependencies and Homebrew
-        uses: actions/cache@v3
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684  # v4.2.3
         with:
           path: |
             /Users/runner/Library/Caches/Homebrew
             dependencies
-          key: macOS-deps
-          restore-keys: macOS-deps
+          key: macOS-deps-${{ hashFiles('build_macos.sh') }}
+          restore-keys: macOS-deps-
 
       - name: Cache Build Folder
-        uses: actions/cache@v3
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684  # v4.2.3
         with:
           path: build
           key: macOS-build-${{ hashFiles('CMakeLists.txt') }}
@@ -37,5 +37,5 @@ jobs:
 
       - name: Run macOS Build Script
         run: |
-          chmod +x ./docs/scripts/build_macos.sh
-          ./docs/scripts/build_macos.sh
+          chmod +x ./build_macos.sh
+          ./build_macos.sh

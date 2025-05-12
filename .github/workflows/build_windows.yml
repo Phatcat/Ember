@@ -17,21 +17,19 @@ jobs:
     runs-on: windows-2025
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
-      - name: Cache Dependencies and Homebrew
-        uses: actions/cache@v3
+      - name: Cache installed dependencies
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684  # v4.2.3
         with:
           path: |
-            C:\Users\runneradmin\.conan2
             C:\flatbuffers
-            C:\mysql-connector-c++\
-            dependencies
-          key: win-deps
-          restore-keys: win-deps
+            C:\mysql-connector-c++
+          key: win-deps-${{ hashFiles('build_windows.ps1') }}
+          restore-keys: win-deps-
 
       - name: Cache Build Folder
-        uses: actions/cache@v3
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684  # v4.2.3
         with:
           path: build
           key: win-build-${{ hashFiles('CMakeLists.txt') }}
@@ -39,28 +37,26 @@ jobs:
 
       - name: Run Windows Build Script
         shell: pwsh
-        run: .\docs\scripts\build_windows.ps1
+        run: .\build_windows.ps1
 
   # Windows ARM – Cached Debug Build
   ARM64_debug:
     runs-on: windows-11-arm
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
-      - name: Cache Dependencies and Homebrew
-        uses: actions/cache@v3
+      - name: Cache installed dependencies
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684  # v4.2.3
         with:
           path: |
-            C:\Users\runneradmin\.conan2
             C:\flatbuffers
-            C:\mysql-connector-c++\
-            dependencies
-          key: win_arm-deps
-          restore-keys: win_arm-deps
+            C:\mysql-connector-c++
+          key: win_arm-deps-${{ hashFiles('build_windows.ps1') }}
+          restore-keys: win_arm-deps-
 
       - name: Cache Build Folder
-        uses: actions/cache@v3
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684  # v4.2.3
         with:
           path: build
           key: win_arm-build-${{ hashFiles('CMakeLists.txt') }}
@@ -68,4 +64,4 @@ jobs:
 
       - name: Run Windows Build Script
         shell: pwsh
-        run: .\docs\scripts\build_windows.ps1
+        run: .\build_windows.ps1
