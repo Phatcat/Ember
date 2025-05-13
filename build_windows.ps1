@@ -6,7 +6,7 @@
 
 $buildDir            = "build"
 $installDir          = ".\build\bin"
-$buildType           = "Debug"
+$buildType           = "Release"
 
 $buildOptionalTools  = "-1"
 $disableEmberThreads = "0"
