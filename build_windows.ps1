@@ -4,6 +4,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+$cacheDir            = "dependencies\conan"
 $buildDir            = "build"
 $installDir          = ".\build\bin"
 $buildType           = "Debug"
@@ -41,21 +42,39 @@ $profilePath = (& conan profile path default).Trim()
     -replace '^(compiler\.cppstd=).*$', "compiler.cppstd=23" `
     | Set-Content $profilePath -Force
 
-if (Test-Path Join-Path $buildDir "conan_cache.tzst") {
-    conan cache restore $buildDir\conan_cache.tzst
+# Check if there's a conan cache to load
+if (Test-Path $cacheDir) {
+    conan cache restore "$cacheDir\boost_cache.tzst"
+    conan cache restore "$cacheDir\botan_cache.tzst"
+    conan cache restore "$cacheDir\flatbuffers_cache.tzst"
+    conan cache restore "$cacheDir\pcre_cache.tzst"
+    conan cache restore "$cacheDir\zlib_cache.tzst"
 }
+else {
+    if (-not (Test-Path $buildDir)) {
+        New-Item -ItemType Directory -Path $buildDir | Out-Null
+    }
 
-# Dependencies to install via Conan.
-New-Item -ItemType Directory -Path $buildDir | Out-Null
-Write-Host "Running Conan install..."
-conan install -of $buildDir --build missing -g CMakeToolchain -g CMakeDeps --profile default `
-      --requires boost/1.87.0 `
-      --requires botan/3.6.1 `
-      --requires flatbuffers/24.12.23 `
-      --requires pcre/8.45 `
-      --requires zlib/1.3.1 `
+    # Dependencies to install via conan
+    Write-Host "Running Conan install..."
+    conan install -of $buildDir --build missing -g CMakeToolchain -g CMakeDeps --profile default `
+          --requires boost/1.87.0 `
+          --requires botan/3.6.1 `
+          --requires flatbuffers/24.12.23 `
+          --requires pcre/8.45 `
+          --requires zlib/1.3.1
 
-conan cache save -f $buildDir\conan_cache.tzst * --folder=$buildDir
+    if (-not (Test-Path $cacheDir)) {
+        New-Item -ItemType Directory -Path $cacheDir | Out-Null
+    }
+
+    # Cache the dependencies installed via conan
+    conan cache save --out-file "$cacheDir\boost_cache.tzst" "boost/1.87.0:*"
+    conan cache save --out-file "$cacheDir\botan_cache.tzst" "botan/3.6.1:*"
+    conan cache save --out-file "$cacheDir\flatbuffers_cache.tzst" "flatbuffers/24.12.23:*"
+    conan cache save --out-file "$cacheDir\pcre_cache.tzst" "pcre/8.45:*"
+    conan cache save --out-file "$cacheDir\zlib_cache.tzst" "zlib/1.3.1:*"
+}
 
 ####################################################
 # --- Patch Conan configuration ---
@@ -110,9 +129,9 @@ if (-not (Test-Path "C:\mysql-connector-c++\")) {
     # Determine architecture and set download parameters accordingly
     if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") {
         Write-Host "ARM64 architecture detected. Downloading MySQL Connector/C++ source code."
-        $url = "https://github.com/mysql/mysql-connector-cpp/archive/refs/tags/9.2.0.zip"
-        $connectorSubDir = "mysql-connector-cpp-9.2.0"
-    } 
+        $url = "https://github.com/mysql/mysql-connector-cpp/archive/refs/tags/9.3.0.zip"
+        $connectorSubDir = "mysql-connector-cpp-9.3.0"
+    }
     else {
         Write-Host "x86_64 architecture detected. Using prebuilt MySQL Connector/C++ binaries."
         $url = "https://dev.mysql.com/get/Downloads/Connector-C++/mysql-connector-c++-9.3.0-winx64-debug.zip"
@@ -123,11 +142,11 @@ if (-not (Test-Path "C:\mysql-connector-c++\")) {
     if (Get-Command curl -ErrorAction SilentlyContinue) {
         Write-Host "Downloading using curl..."
         curl -L $url -o $CACHE_ZIP
-    } 
+    }
     elseif (Get-Command wget -ErrorAction SilentlyContinue) {
         Write-Host "Downloading using wget..."
         wget $url -O $CACHE_ZIP
-    } 
+    }
     else {
         Write-Host "Downloading using Invoke-WebRequest..."
         Invoke-WebRequest -Uri $url -OutFile $CACHE_ZIP
@@ -155,10 +174,11 @@ if (-not (Test-Path "C:\mysql-connector-c++\")) {
         Write-Host "Installing MySQL Connector/C++ (prebuilt x86_64) to $mysqlconcppTargetDir..."
 
         $sourceBase = Join-Path $extractDir "mysql-connector-c++-9.3.0-winx64"
-        Copy-Item -Path (Join-Path $sourceBase "*") -Destination $mysqlconcppTargetDir -Recurse -Force
+        Copy-Item -Path (Join-Path $sourceBase "*") `
+                  -Destination $mysqlconcppTargetDir -Recurse -Force
     }
     else {
-        # For ARM64 (and others): Downloaded Source – Build Required
+        # For ARM64 (and others): Downloaded Source - Build Required
         New-Item -ItemType Directory -Path "$sourceBase\build" -Force | Out-Null
 
         Push-Location "$sourceBase\build"
@@ -167,6 +187,7 @@ if (-not (Test-Path "C:\mysql-connector-c++\")) {
         cmake .. -G "Visual Studio 17 2022" -A $env:PROCESSOR_ARCHITECTURE `
                  -DCMAKE_MSVC_RUNTIME_LIBRARY="MultiThreaded$<$<CONFIG:Debug>:Debug>" `
                  -DBUILD_STATIC=ON `
+                 -DOPENSSL_USE_STATIC_LIBS=TRUE `
                  -DWITH_JDBC=ON `
                  -DWITH_MYSQL="C:\Program Files\MySQL\MySQL Server 8.0" `
                  -DWITH_SSL="C:\Program Files\OpenSSL-Win64" `
@@ -177,6 +198,11 @@ if (-not (Test-Path "C:\mysql-connector-c++\")) {
 
         Write-Host "Installing MySQL Connector/C++ to $mysqlconcppTargetDir..."
         cmake --install . --config $buildType
+
+        New-Item -ItemType Directory -Path "$mysqlconcppTargetDir\lib" -Force | Out-Null
+
+        Copy-Item -Path (Join-Path "$mysqlconcppTargetDir\lib64\debug\vs14" "*") `
+                  -Destination "$mysqlconcppTargetDir\lib" -Recurse -Force
 
         Pop-Location
     }
@@ -193,6 +219,8 @@ Write-Host "CMAKE_PREFIX_PATH set to: $env:CMAKE_PREFIX_PATH"
 # Configure and Build Ember
 ####################################################
 Write-Host "=== Configuring project with CMake ==="
+
+cmake --build $buildDir --target clean
 
 cmake -S . -B $buildDir -G "Visual Studio 17 2022" `
       -DCMAKE_MSVC_RUNTIME_LIBRARY="MultiThreaded$<$<CONFIG:Debug>:Debug>" `
