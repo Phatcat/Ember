@@ -89,6 +89,7 @@ set(UTIL_SRC
     shared/utility/polyfill/inplace_vector
     shared/utility/polyfill/ranged_iota
     shared/utility/polyfill/atomic_shared_ptr
+    shared/utility/polyfill/toUpper
     shared/utility/Timing.h
     shared/utility/Timing.cpp
     shared/utility/Exception.h
@@ -136,6 +137,6 @@ source_group("Metrics" FILES ${METRICS_SRC})
 
 include_directories(${CMAKE_SOURCE_DIR}/deps/utf8cpp ${PROJECT_BINARY_DIR}/src)
 add_library(${LIBRARY_NAME} ${LIBRARY_SRC})
+target_link_libraries(${LIBRARY_NAME} PUBLIC logger conpool ${BOTAN_LIBRARY} ${PCRE_LIBRARY})
 target_include_directories(${LIBRARY_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/)
-target_link_libraries(${LIBRARY_NAME} PUBLIC logger conpool ${PCRE_LIBRARY})
 set_target_properties(${LIBRARY_NAME} PROPERTIES FOLDER "Common Libraries")

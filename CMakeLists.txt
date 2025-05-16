@@ -95,19 +95,37 @@ set(version_file "${CMAKE_CURRENT_BINARY_DIR}/Version.cpp")
 ##############################
 #            Botan           #
 ##############################
-find_package(Botan 2.14.0 REQUIRED)
-include_directories(${BOTAN_INCLUDE_DIRS})
+find_package(Botan 3.6.1 REQUIRED)
+# Check if the static target exists; otherwise fallback to the shared target.
+if(TARGET Botan::Botan-static)
+  set(BOTAN_LIBRARY Botan::Botan-static)
+  message(STATUS "Using Botan static library")
+elseif(TARGET Botan::Botan)
+  set(BOTAN_LIBRARY Botan::Botan)
+  message(STATUS "Using Botan shared library")
+else()
+  message(FATAL_ERROR "No valid Botan target found")
+endif()
 
 ##############################
 #     MySQL Connector C++    #
 ##############################
-find_package(MySQLConnectorCPP REQUIRED)
-include_directories(${MYSQLCCPP_INCLUDE_DIRS})
+find_package(mysql-concpp REQUIRED)
+# Check if the static JDBC target exists; otherwise fallback to the shared JDBC target.
+if(TARGET mysql::concpp-jdbc-static)
+    set(MYSQLCCPP_LIBRARY mysql::concpp-jdbc-static)
+    message(STATUS "Using MySQL Connector/C++ JDBC static library")
+elseif(TARGET mysql::concpp-jdbc)
+    set(MYSQLCCPP_LIBRARY mysql::concpp-jdbc)
+    message(STATUS "Using MySQL Connector/C++ JDBC shared library")
+else()
+    message(FATAL_ERROR "No valid MySQL Connector/C++ JDBC target found")
+endif()
 
 ##############################
 #         FlatBuffers        #
 ##############################
-find_package(FlatBuffers 2.0.8 REQUIRED)
+find_package(flatbuffers 2.0.8 REQUIRED)
 
 ##############################
 #            zlib            #
@@ -142,6 +160,17 @@ add_definitions(-DDB_MYSQL) #temporary!
 include_directories(${CMAKE_SOURCE_DIR}/deps)
 include(BuildDBCLoaders)
 include(BuildSparkServices)
+
+# For Apple: Amend homebrew installed libraries to cmake's search path
+if(APPLE)
+  file(GLOB HOME_BREW_LIB_DIRS "/opt/homebrew/opt/*/lib")
+  set(HOMEBREW_LINKER_FLAGS_LIST "")
+  foreach(libdir ${HOME_BREW_LIB_DIRS})
+    list(APPEND HOMEBREW_LINKER_FLAGS_LIST "-L${libdir}")
+  endforeach()
+  message(STATUS "Appending Homebrew linker flags: ${HOMEBREW_LINKER_FLAGS_LIST}")
+  add_link_options(${HOMEBREW_LINKER_FLAGS_LIST})
+endif()
 
 add_subdirectory(schemas)
 set(cmake_ctest_arguments "CTEST_OUTPUT_ON_FAILURE")
