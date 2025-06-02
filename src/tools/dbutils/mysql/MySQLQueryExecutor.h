@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Ember
+ * Copyright (c) 2019 - 2025 Ember
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -9,12 +9,13 @@
 #pragma once
 
 #include "../QueryExecutor.h"
-#include <cppconn/connection.h>
+#include <boost/mysql.hpp>
+#include <boost/mysql/any_address.hpp>
 #include <memory>
 
 class MySQLQueryExecutor final : public QueryExecutor {
 	const DatabaseDetails details_;
-	std::unique_ptr<sql::Connection> conn_;
+	std::unique_ptr<boost::mysql::any_connection> conn_;
 
 public:
 	explicit MySQLQueryExecutor(DatabaseDetails details);

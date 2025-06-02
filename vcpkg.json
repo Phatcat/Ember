@@ -3,18 +3,15 @@
     "boost-asio",
     "boost-headers",
     "boost-interprocess",
+    "boost-mysql",
+    "boost-charconv",
     "boost-program-options",
     "boost-system",
     "boost-uuid",
     "botan",
     "flatbuffers",
+    "openssl",
     "pcre",
-    "zlib",
-    {
-      "name": "mysql-connector-cpp",
-      "features": [
-        "jdbc"
-      ]
-    }
+    "zlib"
   ]
 }

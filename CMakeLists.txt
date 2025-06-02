@@ -77,10 +77,11 @@ endif(WIN32)
 ##############################
 add_definitions(-DBOOST_ALL_NO_LIB)
 add_definitions(-DBOOST_UUID_FORCE_AUTO_LINK)
+add_definitions(-DBOOST_MYSQL_USE_SSL)
 set(Boost_USE_STATIC_LIBS ON)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
-find_package(Boost 1.87.0 REQUIRED COMPONENTS program_options system)
+find_package(Boost 1.88.0 REQUIRED COMPONENTS program_options system charconv)
 
 ##############################
 #             Git            #
@@ -99,10 +100,9 @@ find_package(Botan 2.14.0 REQUIRED)
 include_directories(${BOTAN_INCLUDE_DIRS})
 
 ##############################
-#     MySQL Connector C++    #
+#           OpenSSL          #
 ##############################
-find_package(MySQLConnectorCPP REQUIRED)
-include_directories(${MYSQLCCPP_INCLUDE_DIRS})
+find_package(OpenSSL REQUIRED)
 
 ##############################
 #         FlatBuffers        #

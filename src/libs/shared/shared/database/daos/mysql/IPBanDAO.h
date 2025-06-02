@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 - 2024 Ember
+ * Copyright (c) 2015 - 2025 Ember
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -10,12 +10,16 @@
 
 #include <shared/database/daos/shared_base/IPBanBase.h>
 #include <conpool/ConnectionPool.h>
-#include <mysql_connection.h>
-#include <cppconn/exception.h>
 #include <conpool/drivers/MySQL/Driver.h>
-#include <cppconn/prepared_statement.h>
+#include <boost/mysql.hpp>
+#include <boost/mysql/diagnostics.hpp>
+#include <boost/system/error_code.hpp>
 #include <memory>
 #include <string_view>
+#include <optional>
+#include <vector>
+#include <string>
+#include <utility>
 
 namespace ember::dal {
 
@@ -30,47 +34,81 @@ public:
 	MySQLIPBanDAO(T& pool) : pool_(pool), driver_(pool.get_driver()) { }
 
 	std::optional<std::uint32_t> get_mask(const std::string& ip) const override try {
+		auto conn = pool_.try_acquire_for(60s);
+
 		std::string_view query = "SELECT cidr FROM ip_bans WHERE ip = ?";
 
-		auto conn = pool_.try_acquire_for(60s);
-		sql::PreparedStatement* stmt = driver_->prepare_cached(*conn, query);
-		stmt->setString(1, ip);
-		std::unique_ptr<sql::ResultSet> res(stmt->executeQuery());
+		boost::mysql::results result;
+		boost::mysql::error_code ec;
+		boost::mysql::diagnostics diag;
 
-		if(res->next()) {
-			return res->getUInt("cidr");
+		auto stmt = driver_->prepare_cached(*conn, query);
+		auto bound_stmt = stmt->bind(ip);
+
+		conn->execute(bound_stmt, result, ec, diag);
+		if (ec) {
+			throw std::runtime_error(std::format("Error executing query: {} (Server Error: {}, Client Error: {})",
+			                                     ec.message(), std::string(diag.server_message()),
+			                                     std::string(diag.client_message())));
 		}
 
-		return std::nullopt;
+		return !result.rows().empty() ? std::make_optional(result.rows()[0][0].as_uint64()) : std::nullopt;
+	} catch(const ember::connection_pool::no_free_connections& e) {
+		throw exception("Failed to acquire connection within timeout for get_mask");
 	} catch(const std::exception& e) {
 		throw exception(e.what());
 	}
 
 	std::vector<IPEntry> all_bans() const override try {
+		auto conn = pool_.try_acquire_for(60s);
+
 		std::string_view query = "SELECT ip, cidr FROM ip_bans";
 
-		auto conn = pool_.try_acquire_for(60s);
-		sql::PreparedStatement* stmt = driver_->prepare_cached(*conn, query);
-		std::unique_ptr<sql::ResultSet> res(stmt->executeQuery());
+		boost::mysql::results result;
+		boost::mysql::error_code ec;
+		boost::mysql::diagnostics diag;
 		std::vector<IPEntry> entries;
 
-		while(res->next()) {
-			entries.emplace_back(res->getString("ip"), res->getUInt("cidr"));
+		auto stmt = driver_->prepare_cached(*conn, query);
+
+		conn->execute(stmt->bind(), result, ec, diag);
+		if (ec) {
+			throw std::runtime_error(std::format("Error executing query: {} (Server Error: {}, Client Error: {})",
+			                                     ec.message(), std::string(diag.server_message()),
+			                                     std::string(diag.client_message())));
+		}
+
+		for (const auto& row : result.rows()) {
+		 	entries.emplace_back(row[0].as_string(), row[1].as_uint64());
 		}
 
 		return entries;
+	} catch(const ember::connection_pool::no_free_connections& e) {
+		throw exception("Failed to acquire connection within timeout for all_bans");
 	} catch(const std::exception& e) {
 		throw exception(e.what());
 	}
 
 	void ban(const IPEntry& ban) const override try {
+		auto conn = pool_.try_acquire_for(60s);
+
 		std::string_view query = "INSERT INTO ip_bans (ip, cidr) VALUES (?, ?)";
 
-		auto conn = pool_.try_acquire_for(60s);
-		sql::PreparedStatement* stmt = driver_->prepare_cached(*conn, query);
-		stmt->setString(1, ban.first);
-		stmt->setUInt(2, ban.second);
-		stmt->executeQuery();
+		boost::mysql::results result;
+		boost::mysql::error_code ec;
+		boost::mysql::diagnostics diag;
+
+		auto stmt = driver_->prepare_cached(*conn, query);
+		auto bound_stmt = stmt->bind(ban.first, ban.second);
+
+		conn->execute(bound_stmt, result, ec, diag);
+		if (ec) {
+			throw std::runtime_error(std::format("Error executing query: {} (Server Error: {}, Client Error: {})",
+			                                     ec.message(), std::string(diag.server_message()),
+			                                     std::string(diag.client_message())));
+		}
+	} catch(const ember::connection_pool::no_free_connections& e) {
+		throw exception("Failed to acquire connection within timeout for ban");
 	} catch(const std::exception& e) {
 		throw exception(e.what());
 	}

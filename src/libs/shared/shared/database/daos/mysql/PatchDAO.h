@@ -11,10 +11,10 @@
 #include <shared/database/daos/shared_base/PatchBase.h>
 #include <botan/bigint.h>
 #include <conpool/ConnectionPool.h>
-#include <mysql_connection.h>
-#include <cppconn/exception.h>
 #include <conpool/drivers/MySQL/Driver.h>
-#include <cppconn/prepared_statement.h>
+#include <boost/mysql.hpp>
+#include <boost/mysql/diagnostics.hpp>
+#include <boost/system/error_code.hpp>
 #include <memory>
 #include <string_view>
 #include <string>
@@ -33,6 +33,8 @@ public:
 	MySQLPatchDAO(T& pool) : pool_(pool), driver_(pool.get_driver()) { }
 
 	std::vector<PatchMeta> fetch_patches() const override try {
+		auto conn = pool_.try_acquire_for(60s);
+
 		std::string_view query = "SELECT patches.id, `from`, `to`, mpq, name, size, md5, os, rollup, "
 		                         "architecture, locale, os.value AS os_val, "
 		                         "arch.value AS architecture_val, l.value AS locale_val "
@@ -41,65 +43,88 @@ public:
 		                         "LEFT JOIN locales l ON patches.locale = l.id "
 		                         "LEFT JOIN operating_systems os ON patches.os = os.id";
 
-		auto conn = pool_.try_acquire_for(60s);
-		sql::PreparedStatement* stmt = driver_->prepare_cached(*conn, query);
-		std::unique_ptr<sql::ResultSet> res(stmt->executeQuery());
+		boost::mysql::results result;
+		boost::mysql::error_code ec;
+		boost::mysql::diagnostics diag;
+
+		auto stmt = driver_->prepare_cached(*conn, std::string(query));
+		auto bound_stmt = stmt->bind();
+
+		conn->execute(bound_stmt, result, ec, diag);
+		if(ec) {
+			throw std::runtime_error(std::format("Error executing query: {} (Server Error: {}, Client Error: {})",
+			                                     ec.message(), std::string(diag.server_message()),
+			                                     std::string(diag.client_message())));
+		}
+
 		std::vector<PatchMeta> patches;
-
-		while(res->next()) {
+		for(const auto& row : result.rows()) {
 			PatchMeta meta{};
-			meta.id = res->getUInt("id");
-			meta.build_from = res->getUInt("from");
-			meta.build_to = res->getUInt("to");
-			meta.os_id = res->getUInt("os");
-			meta.arch_id = res->getUInt("architecture");
-			meta.locale_id = res->getUInt("locale");
-			meta.mpq = res->getBoolean("mpq");
-			meta.file_meta.name = res->getString("name");
-			meta.file_meta.size = res->getUInt64("size");
-			meta.os = res->getString("os_val");
-			meta.locale = res->getString("locale_val");
-			meta.arch = res->getString("architecture_val");
-			meta.rollup = res->getBoolean("rollup");
+			meta.id = row[0].as_uint64();
+			meta.build_from = row[1].as_uint64();
+			meta.build_to = row[2].as_uint64();
+			meta.mpq = row[3].as_int64() != 0;
+			meta.file_meta.name = row[4].as_string();
+			meta.file_meta.size = row[5].as_uint64();
+			meta.file_meta.md5 = {}; // Initialize the array
+			meta.os_id = row[7].as_uint64();
+			meta.rollup = row[8].as_int64() != 0;
+			meta.arch_id = row[9].as_uint64();
+			meta.locale_id = row[10].as_uint64();
+			meta.os = row[11].as_string();
+			meta.arch = row[12].as_string();
+			meta.locale = row[13].as_string();
 
-			const auto md5 = res->getString("md5");
-			Botan::BigInt md5_int(md5.asStdString());
+			std::string md5_str = row[6].as_string();
+			Botan::BigInt md5_int(md5_str);
 			Botan::BigInt::encode_1363(meta.file_meta.md5.data(), meta.file_meta.md5.size(), md5_int);
 			patches.emplace_back(std::move(meta));
 		}
 
 		return patches;
+	} catch(const ember::connection_pool::no_free_connections& e) {
+		throw exception("Failed to acquire connection within timeout for fetch_patches");
 	} catch(const std::exception& e) {
 		throw exception(e.what());
 	}
 
 	void update(const PatchMeta& meta) const override try {
+		auto conn = pool_.try_acquire_for(60s);
+
 		std::string_view query = "UPDATE patches SET `from` = ?, `to` = ?, `mpq` = ?, "
 		                         "`name` = ?, `size` = ?, `md5` = ?, `locale` = ?, "
 		                         "`architecture` = ?, `os` = ?, `rollup` = ? "
 		                         "WHERE id = ?";
 
-		auto conn = pool_.try_acquire_for(60s);
-		sql::PreparedStatement* stmt = driver_->prepare_cached(*conn, query);
+		boost::mysql::results result;
+		boost::mysql::error_code ec;
+		boost::mysql::diagnostics diag;
+		
+		auto stmt = driver_->prepare_cached(*conn, std::string(query));
+		Botan::BigInt md5 = Botan::BigInt::decode(reinterpret_cast<const std::uint8_t*>(meta.file_meta.md5.data()),
+		                                                                                meta.file_meta.md5.size());
+		auto bound_stmt = stmt->bind(
+			meta.build_from,
+			meta.build_to,
+			meta.mpq,
+			meta.file_meta.name,
+			meta.file_meta.size,
+			md5.to_hex_string(),
+			meta.locale_id,
+			meta.arch_id,
+			meta.os_id,
+			meta.rollup,
+			meta.id
+		);
 
-		stmt->setUInt(1, meta.build_from);
-		stmt->setUInt(2, meta.build_to);
-		stmt->setBoolean(3, meta.mpq);
-		stmt->setString(4, meta.file_meta.name);
-		stmt->setUInt64(5, meta.file_meta.size);
-		auto md5 = Botan::BigInt::decode(reinterpret_cast<const std::uint8_t*>(meta.file_meta.md5.data()),
-		                                 meta.file_meta.md5.size());
-
-		stmt->setString(6, md5.to_hex_string());
-		stmt->setUInt(7, meta.locale_id);
-		stmt->setUInt(8, meta.arch_id);
-		stmt->setUInt(9, meta.os_id);
-		stmt->setBoolean(10, meta.rollup);
-		stmt->setUInt(11, meta.id);
-
-		if(!stmt->executeUpdate()) {
-			throw exception("Unable to update patch #" + std::to_string(meta.id));
+		conn->execute(bound_stmt, result, ec, diag);
+		if(ec) {
+			throw exception(std::format("Unable to update patch #{}: {} (Server Error: {}, Client Error: {})",
+			                            meta.id, ec.message(), std::string(diag.server_message()),
+			                            std::string(diag.client_message())));
 		}
+	} catch(const ember::connection_pool::no_free_connections& e) {
+		throw exception("Failed to acquire connection within timeout for update");
 	} catch(const std::exception& e) {
 		throw exception(e.what());
 	}
