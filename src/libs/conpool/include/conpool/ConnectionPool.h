@@ -68,8 +68,8 @@ class Pool final : private ReusePolicy, private GrowthPolicy {
 		}
 	}
 
-	void open_connections(std::size_t num)  {
-		boost::container::small_vector<std::future<ConType>, size_hint> futures;
+	void open_connections(std::size_t num) {
+		boost::container::small_vector<std::future<std::unique_ptr<ConType>>, size_hint> futures;
 		futures.reserve(num);
 
 		for(std::size_t i = 0; i < num; ++i) {
@@ -106,7 +106,7 @@ class Pool final : private ReusePolicy, private GrowthPolicy {
 		if(!cd.error && !cd.sweep && !cd.empty_slot) {
 			if(cd.dirty && !return_clean()) {
 				try {
-					if(driver_.clean(cd.conn)) {
+					if(driver_.clean(*cd.conn)) {
 						cd.dirty = false;
 					} else {
 						cd.sweep = true;
@@ -116,6 +116,7 @@ class Pool final : private ReusePolicy, private GrowthPolicy {
 					if(log_cb_) {
 						log_cb_(Severity::DEBUG, "On connection clean: "s + e.what());
 					}
+
 					return false;
 				}
 			}
@@ -128,9 +129,8 @@ class Pool final : private ReusePolicy, private GrowthPolicy {
 
 		return false;
 	}
-	
+
 	std::optional<Connection<ConType>> get_connection() {
-		driver_.thread_enter();
 
 #ifdef DEBUG_NO_THREADS
 		manager_.run();
@@ -149,7 +149,7 @@ class Pool final : private ReusePolicy, private GrowthPolicy {
 			res = std::ranges::find_if(pool_, [&](auto& arg) {
 				return find_free_connection(arg);
 			});
-			
+
 			if(res == pool_.end()) {
 				return std::nullopt;
 			}
@@ -161,19 +161,18 @@ class Pool final : private ReusePolicy, private GrowthPolicy {
 			this->return_connection(arg);
 		}, *res);
 	}
-	
+
 public:
 	Pool(Driver& driver, std::size_t min_size, std::size_t max_size,
 	     sc::seconds max_idle, sc::seconds interval = 15s)
 		: driver_(driver),
 		  min_(min_size),
-	      max_(max_size),
+		  max_(max_size),
 		  manager_(this, interval, max_idle),
 		  pool_(max_size),
 		  pool_guards_(max_size),
 		  size_(0),
 		  closed_(false) {
-		driver_.thread_enter();
 
 		if(!max_size) {
 			throw exception("Max. database connections cannot be zero");
@@ -203,15 +202,14 @@ public:
 			BOOST_ASSERT_MSG(!c.checked_out, "Closed connection pool without returning all connections.");
 
 			try {
-				driver_.close(c.conn);
-			} catch(const std::exception& e) { 
+				driver_.close(std::move(c.conn));
+			} catch(const std::exception& e) {
 				if(log_cb_) {
 					log_cb_(Severity::ERROR, "Closing pool, driver threw: "s + e.what());
 				}
 			}
 		}
 
-		driver_.thread_exit();
 	}
 
 	void close() {
@@ -234,7 +232,7 @@ public:
 				continue;
 			}
 
-			driver_.close(c.conn);
+			driver_.close(std::move(c.conn));
 		}
 
 		if(active) {
@@ -260,7 +258,7 @@ public:
 	 */
 	Connection<ConType> acquire() {
 		std::optional<Connection<ConType>> conn;
-		
+
 		while(!(conn = get_connection())) {
 			semaphore_.acquire();
 		}
@@ -283,7 +281,7 @@ public:
 		while(!(conn = get_connection())) {
 			sc::milliseconds elapsed = sc::duration_cast<sc::milliseconds>
 				(sc::high_resolution_clock::now() - start);
-			
+
 			if(elapsed >= duration) {
 				throw no_free_connections();
 			}
@@ -301,7 +299,7 @@ public:
 		auto& detail = connection.detail_.get();
 
 		if(return_clean()) {
-			if(!driver_.clean(detail.conn)) {
+			if(!driver_.clean(*detail.conn)) {
 				detail.dirty = true;
 				detail.sweep = true;
 			}
@@ -314,7 +312,6 @@ public:
 		std::atomic_thread_fence(std::memory_order_release);
 		pool_guards_[detail.id].store(false, std::memory_order_relaxed);
 
-		driver_.thread_exit();
 		manager_.check_exceptions();
 		semaphore_.release();
 	}

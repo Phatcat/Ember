@@ -23,14 +23,14 @@ RUN apt-get -y update && apt-get -y upgrade \
  && apt-get -y install git \
  # Install required library packages
  && apt-get install -y libbotan-2-dev \
- && apt-get install -y libmysqlcppconn-dev \
+ && apt-get install -y libssl-dev \
  && apt-get install -y zlib1g-dev \
  && apt-get install -y libpcre3-dev \
  && apt-get install -y libflatbuffers-dev \
  && wget -q https://archives.boost.io/release/1.88.0/source/boost_1_88_0.tar.gz \
  && tar -zxf boost_1_88_0.tar.gz \
  && cd boost_1_88_0 \
- && ./bootstrap.sh --with-libraries=system,program_options,headers \
+ && ./bootstrap.sh --with-libraries=system,program_options,headers,mysql,charconv \
  && ./b2 link=static install -d0 -j $(nproc) cxxflags="-std=c++23"
 
 # Copy source
@@ -42,7 +42,7 @@ WORKDIR ${working_dir}
 # These can be overriden by passing them through to `docker build`
 ARG build_optional_tools=1
 ARG disable_threads=0
-ARG build_type=Rel
+ARG build_type=Debug
 ARG install_dir=/usr/local/bin
 
 # Generate Makefile & compile
@@ -62,9 +62,7 @@ ARG install_dir=/usr/local/bin
 ARG working_dir=/usr/src/ember
 WORKDIR ${install_dir}
 RUN apt-get -y update \
- && apt-get install -y libbotan-2-19 \
- && apt-get install -y libmysqlcppconn7v5 \
- && apt-get install -y mysql-client
+ && apt-get install -y libbotan-2-19 
 COPY --from=builder ${install_dir} ${install_dir}
 RUN cp configs/*.dist .
 COPY ./sql ${install_dir}/sql

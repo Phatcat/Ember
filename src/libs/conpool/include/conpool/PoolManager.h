@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 - 2024 Ember
+ * Copyright (c) 2014 - 2025 Ember
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -47,8 +47,8 @@ class PoolManager final {
 
 	void close(ConnDetail<ConType>& conn) {
 		try {
-			pool_->driver_.close(conn.conn);
-		} catch(const std::exception& e) { 
+			pool_->driver_.close(std::move(conn.conn));
+		} catch(const std::exception& e) {
 			if(pool_->log_cb_) {
 				pool_->log_cb_(Severity::ERROR, "Connection close, driver threw: "s + e.what());
 			}
@@ -62,9 +62,9 @@ class PoolManager final {
 
 	void refresh(ConnDetail<ConType>& conn) {
 		try {
-			conn.error = !pool_->driver_.keep_alive(conn.conn);
+			conn.error = !pool_->driver_.keep_alive(*conn.conn);
 			conn.idle = 0s;
-		} catch(const std::exception& e) { 
+		} catch(const std::exception& e) {
 			conn.error = true;
 
 			if(pool_->log_cb_) {
@@ -89,7 +89,7 @@ class PoolManager final {
 		if(pool_->size_ < pool_->min_) {
 			try {
 				pool_->open_connections(pool_->min_ - pool_->size_);
-			} catch(const std::exception& e) { 
+			} catch(const std::exception& e) {
 				guard.unlock();
 
 				if(pool_->log_cb_) {
@@ -162,7 +162,6 @@ public:
 	}
 
 	void run() try {
-		pool_->driver_.thread_enter();
 		std::unique_lock lock(cond_lock_);
 
 #ifndef DEBUG_NO_THREADS
@@ -180,8 +179,6 @@ public:
 		if(pool_->log_cb_) {
 			pool_->log_cb_(Severity::DEBUG, "Pool manager trapped exception - passing to next caller");
 		}
-
-		pool_->driver_.thread_exit();
 	}
 
 	void stop() {
